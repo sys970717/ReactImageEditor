@@ -1,11 +1,11 @@
 import React, { Component } from 'react'
 import Dropzone from 'react-dropzone'
-import ReactCrop, { makeAspectCrop } from 'react-image-crop'
+import ReactCrop from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { image64toCanvasRef, downloadBase64File, base64StringtoFile, extractImageFileExtensionFromBase64 } from './ResuableUtils'
 import { _handleRotate } from './ImageRotate'
 
-const imageMaxSize = 100000 //bytes
+const imageMaxSize = 100000000 //bytes
 const acceptedFileTypes = 'image/jpeg, image/jpg'
 const acceptedFileTypesArray = acceptedFileTypes.split(',').map((item) => { return item.trim() })
 
@@ -14,16 +14,15 @@ class ImgDropZoneAndCrop extends Component {
     constructor(props) {
         super(props)
         this.imagePreviewCanvasRef = React.createRef()
-        this.fileInputRef = React.createRef()
         this.originImgSrc = ''
         this.state = {
             imgSrc: null,
-            imgSrcExt:null,
+            imgSrcExt: null,
             crop: {
-               
+
             },
-            condition : true,
-            degrees : 0
+            condition: true,
+            degrees: Number(0)
         }
     }
 
@@ -55,6 +54,7 @@ class ImgDropZoneAndCrop extends Component {
             if (isVerified) {
                 // imageBase64Data
                 const currentFile = files[0]
+                var tmpPixelCrop = { x: 0, y: 0, width: 500, height: 400 }
                 const myFileItemReader = new FileReader()
                 myFileItemReader.addEventListener('load', () => {
                     // console.log(myFileItemReader.result)
@@ -63,46 +63,92 @@ class ImgDropZoneAndCrop extends Component {
                     this.originImgSrc = myResult
                     this.setState({
                         imgSrc: myResult,
-                        imgSrcExt : extractImageFileExtensionFromBase64(myResult),
-                        disabled: true
+                        imgSrcExt: extractImageFileExtensionFromBase64(myResult),
+                        condition: true
                     })
-                }, false)
 
+                    const image = new Image()
+                    image.src = myResult
+                    image.onload = () => {
+                        console.log(image.width)
+
+                        tmpPixelCrop.width = image.width
+                        tmpPixelCrop.height = image.height
+
+                        // Canvas
+                        const canvas = this.imagePreviewCanvasRef.current
+                        const { imgSrc } = this.state
+
+                        image64toCanvasRef(canvas, imgSrc, tmpPixelCrop)
+                    }
+                }, false)
                 myFileItemReader.readAsDataURL(currentFile)
             }
         }
     }
     handleImageLoaded = (image) => {
-        console.log(image)
+        
     }
     handleChangeCropCondition = (crop) => {
-        if(this.state.condition === false) {
-            this.setState({ crop: crop, condition : true } )
-        } else if(this.state.condition === true) {
-            this.setState({crop : '', condition : false})
+        if (this.state.condition === false) {
+            this.setState({ crop: crop, condition: true, degrees: Number(0) })
+        } else if (this.state.condition === true) {
+            this.setState({ crop: '', condition: false, degrees: Number(0) })
         }
     }
     handleOnCropChange = (crop) => {
-        console.log(crop)
-        console.log(this.state)
-        this.setState({ crop: crop} )
+        this.setState({ crop: crop })
     }
     handleOnCropComplete = (crop, pixelCrop) => {
-        //console.log(crop, pixelCrop)
+        console.log(crop, pixelCrop)
 
         const canvasRef = this.imagePreviewCanvasRef.current
-        const {imgSrc} = this.state
+        const { imgSrc } = this.state
         image64toCanvasRef(canvasRef, imgSrc, pixelCrop)
     }
+    // Crop Submit Button Event
+    handleCropped = (event) => {
+        const canvasRef = this.imagePreviewCanvasRef.current
+        const ctx = canvasRef.getContext('2d')
+
+        console.log(canvasRef.toDataURL())
+        // var myResult = getBase64Image(canvasRef.toDataURL('image/jpg'))
+        var myResult = canvasRef.toDataURL('image/', this.state.imgSrcExt)
+
+        var tmpPixelCrop = { x: 0, y: 0, width: 500, height: 400 }
+
+        const image = new Image()
+        image.src = myResult
+        image.onload = () => {
+            ctx.clearRect(0, 0, 500, 500);
+            tmpPixelCrop.width = image.width
+            tmpPixelCrop.height = image.height
+
+            image64toCanvasRef(canvasRef, this.state.imgSrc, tmpPixelCrop)
+        }
+
+        ctx.restore();
+
+        this.setState({
+            imgSrc: myResult,
+            imgSrcExt: extractImageFileExtensionFromBase64(myResult),
+            condition: true,
+            crop : {
+
+            }
+        });
+
+    }
+
     handleDownloadClick = (event) => {
         event.preventDefault()
-        const {imgSrc}  = this.state
+        const { imgSrc } = this.state
         if (imgSrc) {
             const canvasRef = this.imagePreviewCanvasRef.current
-        
-            const {imgSrcExt} =  this.state
+
+            const { imgSrcExt } = this.state
             const imageData64 = canvasRef.toDataURL('image/' + imgSrcExt)
-      
+
             const myFilename = "previewFile." + imgSrcExt
 
             // file to be uploaded
@@ -114,7 +160,7 @@ class ImgDropZoneAndCrop extends Component {
         }
     }
 
-    handleClearToDefault = event =>{
+    handleClearToDefault = event => {
         if (event) event.preventDefault()
         const canvas = this.imagePreviewCanvasRef.current
         const ctx = canvas.getContext('2d');
@@ -124,62 +170,34 @@ class ImgDropZoneAndCrop extends Component {
             imgSrc: null,
             imgSrcExt: null,
             crop: {
-                x: 10,
-                y: 10,
-                width: 80,
-                height: 80,
+
             },
-            condition : false
+            degrees: Number(0)
 
         })
-        this.fileInputRef.current.value = null
-    }
-
-    handleFileSelect = event => {
-        // console.log(event)
-        const files = event.target.files
-        if (files && files.length > 0){
-              const isVerified = this.verifyFile(files)
-             if (isVerified){
-                 // imageBase64Data 
-                 const currentFile = files[0]
-                 const myFileItemReader = new FileReader()
-                 myFileItemReader.addEventListener("load", ()=>{
-                     // console.log(myFileItemReader.result)
-                     const myResult = myFileItemReader.result
-                     this.setState({
-                         imgSrc: myResult,
-                         imgSrcExt: extractImageFileExtensionFromBase64(myResult)
-                     })
-                 }, false)
-
-                 myFileItemReader.readAsDataURL(currentFile)
-
-             }
-        }
     }
 
     handleRotate = (e) => {
         const canvasRef = this.imagePreviewCanvasRef.current
-        console.log(canvasRef)
-        const {imgSrc} = this.state
-        console.log(imgSrc)
-        const direction = e.target.textContent.toLowerCase();
+        const imgSrc = this.state
+        const direction = e.target.textContent.toLowerCase()
+        var degrees = imgSrc.degrees;
 
-        if(direction === 'left') {
-            if(imgSrc.degrees <= 360) {
-                this.setState({degrees : 90})
+        console.log(degrees)
+
+        if (direction === 'left') {
+            if (imgSrc.degrees >= 360) {
+                imgSrc.degrees = 90
             } else {
-                this.setState({degrees : imgSrc.degrees+90})
+                imgSrc.degrees = degrees + 90
             }
         } else {
-            if(imgSrc.degrees === 0) {
-                this.setState({degrees : 270})
+            if (imgSrc.degrees === 0) {
+                imgSrc.degrees = 270
             } else {
-                this.setState({degrees : imgSrc.degrees-90})
+                imgSrc.degrees = degrees - 90
             }
         }
-
         _handleRotate(canvasRef, imgSrc)
     }
 
@@ -189,7 +207,7 @@ class ImgDropZoneAndCrop extends Component {
         return (
             <div>
                 <h1>Drop and Crop</h1>
-                <input ref={this.fileInputRef} type='file' accept={acceptedFileTypes} multiple={false} onChange={this.handleFileSelect} />
+                <Dropzone onDrop={this.handleOnDrop} maxSize={imageMaxSize} multiple={false} accept={acceptedFileTypes}> Drop/Click here or to upload here </Dropzone>
                 {imgSrc !== null ?
                     <div>
                         <ReactCrop
@@ -199,18 +217,18 @@ class ImgDropZoneAndCrop extends Component {
                             onImageLoaded={this.onImageLoaded}
                             onComplete={this.handleOnCropComplete}
                             disabled={this.state.condition}
-                            />
-                        <br/>
+                        />
+                        <br />
                         <p>Preview Canvas Crop</p>
-                        <canvas ref={this.imagePreviewCanvasRef}></canvas>
                         <button onClick={this.handleChangeCropCondition}>Crop{this.state.condition}</button>
+                        <button onClick={this.handleCropped}>Crop Submit</button>
                         <button onClick={this.handleRotate}>Right</button>
                         <button onClick={this.handleRotate}>Left</button>
-                        <button onClick={this.handleDownloadClick}>Download</button>
+                        <button onClick={this.handleDownloadClick}>Save</button>
                         <button onClick={this.handleClearToDefault}>Clear</button>
                     </div>
                     : ''}
-                <Dropzone onDrop={this.handleOnDrop} maxSize={imageMaxSize} multiple={false} accept={acceptedFileTypes}> Drop/Click here or to upload here </Dropzone>
+                <canvas ref={this.imagePreviewCanvasRef} width={500} height={500} id="canvas"></canvas>
             </div>
         )
     }
